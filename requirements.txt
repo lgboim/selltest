@@ -4,5 +4,4 @@ beautifulsoup4
 tqdm
 cloudscraper
 subprocess
-os
 tempfile
