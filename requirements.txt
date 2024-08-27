@@ -3,3 +3,4 @@ requests
 beautifulsoup4
 tqdm
 cloudscraper
+browser_cookie3
