@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import time
-import concurrent.futures
 import random
 
 def get_random_user_agent():
@@ -62,41 +61,29 @@ def check_page(session, page_number, query, agency, top_rated_plus):
             else:
                 return False, f"Error: {str(e)}"
 
-def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
-    left, right = 1, max_pages
+def linear_search(session, query, agency, top_rated_plus, max_pages=1000):
     last_page_with_results = 0
-    cache = {}
+    page = 1
 
-    total_iterations = (max_pages.bit_length() - 1) * 3  # Estimate of total iterations
-    iterations = 0
+    while page <= max_pages:
+        time.sleep(random.uniform(5, 10))  # Random delay between 5 and 10 seconds
+        
+        result, error = check_page(session, page, query, agency, top_rated_plus)
+        
+        if error:
+            yield page, max_pages, None, error
+            break
+        
+        if result:
+            last_page_with_results = page
+            yield page, max_pages, None, None
+            page += 1
+        else:
+            if page > last_page_with_results + 5:  # Stop if no results for 5 consecutive pages
+                break
+            page += 1
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        while left <= right:
-            mid = (left + right) // 2
-            pages_to_check = [mid - 1, mid, mid + 1]
-            pages_to_check = [p for p in pages_to_check if p > 0 and p not in cache]
-
-            futures = {executor.submit(check_page, session, page, query, agency, top_rated_plus): page for page in pages_to_check}
-            for future in concurrent.futures.as_completed(futures):
-                page = futures[future]
-                result, error = future.result()
-                cache[page] = result
-                if result:
-                    last_page_with_results = max(last_page_with_results, page)
-                if error:
-                    yield iterations, total_iterations, left, right, None, error
-            
-            iterations += 1
-            yield iterations, total_iterations, left, right, None, None
-
-            if cache.get(mid, False):
-                left = mid + 1
-            else:
-                right = mid - 1
-
-            time.sleep(random.uniform(1, 3))  # Random delay between 1 and 3 seconds
-
-    yield iterations, total_iterations, left, right, last_page_with_results, None
+    yield page, max_pages, last_page_with_results, None
 
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
@@ -119,20 +106,20 @@ def main():
             status_text = st.empty()
 
             start_time = time.time()
-            search_generator = binary_search(session, query, agency, top_rated_plus)
+            search_generator = linear_search(session, query, agency, top_rated_plus)
 
             last_page = None
             for result in search_generator:
-                iterations, total_iterations, left, right, last_page, error = result
+                current_page, max_pages, last_page, error = result
                 if error:
                     st.error(error)
-                    st.error("The search was blocked. Please try again later or consider using a VPN.")
+                    st.error("The search was blocked. Please try again later.")
                     break
                 if last_page is not None:
                     break
-                progress = min(1.0, iterations / total_iterations)
+                progress = min(1.0, current_page / max_pages)
                 progress_bar.progress(progress)
-                status_text.text(f"Searching... Current range: {left} - {right}")
+                status_text.text(f"Searching... Current page: {current_page}")
 
             end_time = time.time()
 
@@ -171,7 +158,7 @@ def main():
                         "Top Rated Plus": "Yes" if top_rated_plus else "No"
                     })
             else:
-                st.error("Search failed to complete. Please try again later or consider using a VPN.")
+                st.error("Search failed to complete. Please try again later.")
 
         else:
             st.warning("Please enter a search query.")
