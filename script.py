@@ -115,7 +115,13 @@ def main():
     if upwork_cookies:
         st.success("Successfully retrieved Upwork cookies from your browser.")
     else:
-        st.warning("No Upwork cookies found. The search may be limited.")
+        st.warning("No Upwork cookies found automatically. You may need to enter them manually.")
+
+    manual_cookie_input = st.text_area("Enter Upwork cookies manually (optional):", height=100)
+    if manual_cookie_input:
+        manual_cookies = parse_cookies(manual_cookie_input)
+        upwork_cookies.update(manual_cookies)
+        st.success("Manually entered cookies added successfully.")
 
     col1, col2 = st.columns([2, 1])
 
