@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import concurrent.futures
-from tqdm import tqdm
 
 def check_page(session, page_number, query, agency, top_rated_plus):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
@@ -47,10 +46,8 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
     cache = {}
 
     total_iterations = (max_pages.bit_length() - 1) * 3  # Estimate of total iterations
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-
     iterations = 0
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         while left <= right:
             mid = (left + right) // 2
@@ -66,9 +63,7 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
                     last_page_with_results = max(last_page_with_results, page)
             
             iterations += 1
-            progress = min(1.0, iterations / total_iterations)
-            progress_bar.progress(progress)
-            status_text.text(f"Searching... Current range: {left} - {right}")
+            yield iterations, total_iterations, left, right
 
             if cache.get(mid, False):
                 left = mid + 1
@@ -77,13 +72,11 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
 
             time.sleep(0.05)
 
-    progress_bar.progress(1.0)
-    status_text.text("Search complete!")
-    return last_page_with_results
+    yield iterations, total_iterations, left, right, last_page_with_results
 
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
-    st.title("🔍 Upwork Search Page Finder")
+    st.title("🔍 Upwork results")
 
     col1, col2 = st.columns([2, 1])
 
@@ -98,10 +91,26 @@ def main():
             session = requests.Session()
             query = requests.utils.quote(query)
             
-            with st.spinner(f"Searching for: {query}"):
-                start_time = time.time()
-                last_page = binary_search(session, query, agency, top_rated_plus)
-                end_time = time.time()
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            start_time = time.time()
+            search_generator = binary_search(session, query, agency, top_rated_plus)
+
+            last_page = None
+            for result in search_generator:
+                if len(result) == 5:
+                    _, _, _, _, last_page = result
+                    break
+                iterations, total_iterations, left, right = result
+                progress = min(1.0, iterations / total_iterations)
+                progress_bar.progress(progress)
+                status_text.text(f"Searching... Current range: {left} - {right}")
+
+            end_time = time.time()
+
+            progress_bar.progress(1.0)
+            status_text.text("Search complete!")
 
             st.success("Search complete!")
 
