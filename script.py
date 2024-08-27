@@ -15,22 +15,16 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
-def get_upwork_session():
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
-    url = "https://www.upwork.com/"
-    headers = {
-        'User-Agent': get_random_user_agent(),
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'DNT': '1',
-    }
-    
+def get_upwork_cookies():
     try:
-        response = scraper.get(url, headers=headers, timeout=20)
-        response.raise_for_status()
-        return scraper.cookies.get_dict()
+        chrome_cookies = browser_cookie3.chrome(domain_name='upwork.com')
+        firefox_cookies = browser_cookie3.firefox(domain_name='upwork.com')
+        edge_cookies = browser_cookie3.edge(domain_name='upwork.com')
+        
+        all_cookies = {**dict(chrome_cookies), **dict(firefox_cookies), **dict(edge_cookies)}
+        return all_cookies
     except Exception as e:
-        st.error(f"Failed to obtain Upwork session: {str(e)}")
+        st.error(f"Failed to obtain browser cookies: {str(e)}")
         return {}
 
 def check_page(page_number, query, agency, top_rated_plus, cookies):
@@ -110,9 +104,11 @@ def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
 
-    upwork_cookies = get_upwork_session()
+    upwork_cookies = get_upwork_cookies()
     if not upwork_cookies:
-        st.warning("Failed to obtain Upwork session. Results may be limited.")
+        st.warning("Failed to obtain Upwork cookies from your browser. Results may be limited.")
+    else:
+        st.success("Successfully obtained Upwork cookies from your browser.")
 
     col1, col2 = st.columns([2, 1])
 
