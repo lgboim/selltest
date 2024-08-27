@@ -15,6 +15,13 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
+def parse_cookies(cookie_string):
+    try:
+        return dict(item.split("=", 1) for item in cookie_string.split("; "))
+    except:
+        st.error("Invalid cookie format. Please make sure you've copied the entire cookie string.")
+        return {}
+
 def get_upwork_cookies():
     try:
         chrome_cookies = browser_cookie3.chrome(domain_name='upwork.com')
@@ -24,7 +31,7 @@ def get_upwork_cookies():
         all_cookies = {**dict(chrome_cookies), **dict(firefox_cookies), **dict(edge_cookies)}
         return all_cookies
     except Exception as e:
-        st.warning(f"Failed to obtain browser cookies: {str(e)}. Proceeding without cookies.")
+        st.error(f"Failed to obtain browser cookies: {str(e)}")
         return {}
 
 def check_page(page_number, query, agency, top_rated_plus, cookies):
@@ -105,10 +112,10 @@ def main():
     st.title("🔍 Upwork results")
 
     upwork_cookies = get_upwork_cookies()
-    if not upwork_cookies:
-        st.warning("No Upwork cookies found. The search may be limited.")
+    if upwork_cookies:
+        st.success("Successfully retrieved Upwork cookies from your browser.")
     else:
-        st.success("Successfully obtained Upwork cookies from your browser.")
+        st.warning("No Upwork cookies found. The search may be limited.")
 
     col1, col2 = st.columns([2, 1])
 
