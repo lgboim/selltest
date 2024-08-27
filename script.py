@@ -24,7 +24,7 @@ def get_upwork_cookies():
         all_cookies = {**dict(chrome_cookies), **dict(firefox_cookies), **dict(edge_cookies)}
         return all_cookies
     except Exception as e:
-        st.error(f"Failed to obtain browser cookies: {str(e)}")
+        st.warning(f"Failed to obtain browser cookies: {str(e)}. Proceeding without cookies.")
         return {}
 
 def check_page(page_number, query, agency, top_rated_plus, cookies):
@@ -106,7 +106,7 @@ def main():
 
     upwork_cookies = get_upwork_cookies()
     if not upwork_cookies:
-        st.warning("Failed to obtain Upwork cookies from your browser. Results may be limited.")
+        st.warning("No Upwork cookies found. The search may be limited.")
     else:
         st.success("Successfully obtained Upwork cookies from your browser.")
 
@@ -119,9 +119,7 @@ def main():
         top_rated_plus = st.checkbox("Search for Top Rated Plus")
 
     if st.button("Search", type="primary"):
-        if not upwork_cookies:
-            st.error("No Upwork session found. Please log in to Upwork in your browser and refresh this page.")
-        elif query:
+        if query:
             query = quote(query)
             
             progress_bar = st.progress(0)
