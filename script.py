@@ -17,28 +17,27 @@ def check_page(session, page_number, query, agency, top_rated_plus):
     response = session.get(url, headers=headers)
     
     if response.status_code != 200:
-        st.error(f"Error: Status code {response.status_code}")
-        return False
+        return False, f"Error: Status code {response.status_code}"
     
     soup = BeautifulSoup(response.text, 'html.parser')
     
     # Check for "No results found" message
     no_results_message = soup.find('h1', string=lambda text: text and "We couldn't find any talent matching your search" in text)
     if no_results_message:
-        return False
-    
+        return False, None
+
     # Check for freelancer cards
     freelancer_cards = soup.find_all('div', attrs={'data-test': 'freelancer-card'})
     
     if freelancer_cards:
-        return True
+        return True, None
     
     # Check for any divs that might contain freelancer information
     potential_freelancer_divs = soup.find_all('div', class_=lambda x: x and ('up-card-section' in x or 'freelancer' in x))
     if potential_freelancer_divs:
-        return True
+        return True, None
     
-    return False
+    return False, None
 
 def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
     left, right = 1, max_pages
@@ -57,13 +56,15 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
             futures = {executor.submit(check_page, session, page, query, agency, top_rated_plus): page for page in pages_to_check}
             for future in concurrent.futures.as_completed(futures):
                 page = futures[future]
-                result = future.result()
+                result, error = future.result()
                 cache[page] = result
                 if result:
                     last_page_with_results = max(last_page_with_results, page)
+                if error:
+                    yield iterations, total_iterations, left, right, None, error
             
             iterations += 1
-            yield iterations, total_iterations, left, right
+            yield iterations, total_iterations, left, right, None, None
 
             if cache.get(mid, False):
                 left = mid + 1
@@ -72,7 +73,7 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
 
             time.sleep(0.05)
 
-    yield iterations, total_iterations, left, right, last_page_with_results
+    yield iterations, total_iterations, left, right, last_page_with_results, None
 
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
@@ -99,49 +100,54 @@ def main():
 
             last_page = None
             for result in search_generator:
-                if len(result) == 5:
-                    _, _, _, _, last_page = result
+                iterations, total_iterations, left, right, last_page, error = result
+                if error:
+                    st.error(error)
                     break
-                iterations, total_iterations, left, right = result
+                if last_page is not None:
+                    break
                 progress = min(1.0, iterations / total_iterations)
                 progress_bar.progress(progress)
                 status_text.text(f"Searching... Current range: {left} - {right}")
 
             end_time = time.time()
 
-            progress_bar.progress(1.0)
-            status_text.text("Search complete!")
+            if last_page is not None:
+                progress_bar.progress(1.0)
+                status_text.text("Search complete!")
 
-            st.success("Search complete!")
+                st.success("Search complete!")
 
-            # Results container
-            results_container = st.container()
-            with results_container:
-                st.subheader("Search Results")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.metric("Last Page with Results", last_page)
-                    st.metric("Total Results (Approx.)", last_page * 10)
-                
-                with col2:
-                    st.metric("Time Taken", f"{end_time - start_time:.2f} seconds")
+                # Results container
+                results_container = st.container()
+                with results_container:
+                    st.subheader("Search Results")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.metric("Last Page with Results", last_page)
+                        st.metric("Total Results (Approx.)", last_page * 10)
+                    
+                    with col2:
+                        st.metric("Time Taken", f"{end_time - start_time:.2f} seconds")
 
-                st.subheader("Last Page URL")
-                url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}"
-                if agency:
-                    url += "&pt=agency"
-                if top_rated_plus:
-                    url += "&top_rated_plus=yes"
-                url += f"&page={last_page}"
-                st.markdown(f"[Open Last Page]({url})")
+                    st.subheader("Last Page URL")
+                    url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}"
+                    if agency:
+                        url += "&pt=agency"
+                    if top_rated_plus:
+                        url += "&top_rated_plus=yes"
+                    url += f"&page={last_page}"
+                    st.markdown(f"[Open Last Page]({url})")
 
-                st.subheader("Search Parameters")
-                st.json({
-                    "Query": query,
-                    "Agency": "Yes" if agency else "No",
-                    "Top Rated Plus": "Yes" if top_rated_plus else "No"
-                })
+                    st.subheader("Search Parameters")
+                    st.json({
+                        "Query": query,
+                        "Agency": "Yes" if agency else "No",
+                        "Top Rated Plus": "Yes" if top_rated_plus else "No"
+                    })
+            else:
+                st.error("Search failed to complete. Please try again.")
 
         else:
             st.warning("Please enter a search query.")
