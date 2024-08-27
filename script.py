@@ -13,7 +13,24 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
-def check_page(session, page_number, query, agency, top_rated_plus, cookies):
+def get_upwork_session():
+    url = "https://www.upwork.com/"
+    headers = {
+        'User-Agent': get_random_user_agent(),
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'DNT': '1',
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.cookies.get_dict()
+    except requests.RequestException as e:
+        st.error(f"Failed to obtain Upwork session: {str(e)}")
+        return None
+
+def check_page(session, page_number, query, agency, top_rated_plus):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
     if agency:
         url += "&pt=agency"
@@ -31,7 +48,7 @@ def check_page(session, page_number, query, agency, top_rated_plus, cookies):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = session.get(url, headers=headers, cookies=cookies, timeout=10)
+            response = session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -61,14 +78,14 @@ def check_page(session, page_number, query, agency, top_rated_plus, cookies):
             else:
                 return False, f"Error: {str(e)}"
 
-def linear_search(session, query, agency, top_rated_plus, cookies, max_pages=1000):
+def linear_search(session, query, agency, top_rated_plus, max_pages=1000):
     last_page_with_results = 0
     page = 1
 
     while page <= max_pages:
         time.sleep(random.uniform(5, 10))  # Random delay between 5 and 10 seconds
         
-        result, error = check_page(session, page, query, agency, top_rated_plus, cookies)
+        result, error = check_page(session, page, query, agency, top_rated_plus)
         
         if error:
             yield page, max_pages, None, error
@@ -103,22 +120,22 @@ def main():
     
     if st.button("Search", type="primary"):
         if query:
+            st.info("Obtaining Upwork session...")
             session = requests.Session()
+            session.cookies.update(get_upwork_session())
+            
+            if not session.cookies:
+                st.error("Failed to obtain Upwork session. Please try again later.")
+                return
+
+            st.success("Upwork session obtained successfully.")
             query = requests.utils.quote(query)
             
-            # Parse the cookie string into a dictionary
-            cookies = {}
-            if user_cookie:
-                for item in user_cookie.split(';'):
-                    if '=' in item:
-                        key, value = item.strip().split('=', 1)
-                        cookies[key] = value
-
             progress_bar = st.progress(0)
             status_text = st.empty()
 
             start_time = time.time()
-            search_generator = linear_search(session, query, agency, top_rated_plus, cookies)
+            search_generator = linear_search(session, query, agency, top_rated_plus)
 
             last_page = None
             for result in search_generator:
