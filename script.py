@@ -4,9 +4,7 @@ from bs4 import BeautifulSoup
 import time
 import random
 from urllib.parse import quote
-import subprocess
-import os
-import tempfile
+import requests
 
 def get_random_user_agent():
     user_agents = [
@@ -16,6 +14,15 @@ def get_random_user_agent():
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36'
     ]
     return random.choice(user_agents)
+
+def get_proxy():
+    try:
+        response = requests.get('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all')
+        proxies = response.text.split('\r\n')
+        return random.choice(proxies)
+    except Exception as e:
+        st.error(f"Failed to get proxy: {str(e)}")
+        return None
 
 def check_page(scraper, page_number, query, agency, top_rated_plus):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
@@ -35,7 +42,12 @@ def check_page(scraper, page_number, query, agency, top_rated_plus):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = scraper.get(url, headers=headers, timeout=20)
+            proxy = get_proxy()
+            if proxy:
+                proxies = {'http': f'http://{proxy}', 'https': f'http://{proxy}'}
+                response = scraper.get(url, headers=headers, proxies=proxies, timeout=20)
+            else:
+                response = scraper.get(url, headers=headers, timeout=20)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
