@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import time
 import random
 from urllib.parse import quote
+from openvpn_api import VPN
 
 def get_random_user_agent():
     user_agents = [
@@ -86,11 +87,34 @@ def linear_search(scraper, query, agency, top_rated_plus, max_pages=1000):
 
     yield page, max_pages, last_page_with_results, None
 
+def connect_vpn(config_file):
+    vpn = VPN()
+    try:
+        vpn.connect(config_file)
+        return vpn
+    except Exception as e:
+        st.error(f"Failed to connect to VPN: {str(e)}")
+        return None
+
+def disconnect_vpn(vpn):
+    try:
+        vpn.disconnect()
+    except Exception as e:
+        st.error(f"Failed to disconnect VPN: {str(e)}")
+
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
 
-    st.warning("Please ensure you're using a VPN before proceeding with the search.")
+    vpn_config = st.file_uploader("Upload OpenVPN config file", type="ovpn")
+    
+    if vpn_config is not None:
+        vpn = connect_vpn(vpn_config)
+        if vpn:
+            st.success("VPN connected successfully!")
+        else:
+            st.error("Failed to connect to VPN. Please check your config file.")
+            return
 
     col1, col2 = st.columns([2, 1])
 
@@ -165,6 +189,11 @@ def main():
 
         else:
             st.warning("Please enter a search query.")
+
+    if vpn_config is not None:
+        if st.button("Disconnect VPN"):
+            disconnect_vpn(vpn)
+            st.success("VPN disconnected successfully!")
 
 if __name__ == "__main__":
     main()
