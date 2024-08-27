@@ -29,31 +29,38 @@ def check_page(session, page_number, query, agency, top_rated_plus):
         'DNT': '1',
     }
     
-    try:
-        response = session.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        return False, f"Error: {str(e)}"
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    # Check for "No results found" message
-    no_results_message = soup.find('h1', string=lambda text: text and "We couldn't find any talent matching your search" in text)
-    if no_results_message:
-        return False, None
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = session.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Check for "No results found" message
+            no_results_message = soup.find('h1', string=lambda text: text and "We couldn't find any talent matching your search" in text)
+            if no_results_message:
+                return False, None
 
-    # Check for freelancer cards
-    freelancer_cards = soup.find_all('div', attrs={'data-test': 'freelancer-card'})
-    
-    if freelancer_cards:
-        return True, None
-    
-    # Check for any divs that might contain freelancer information
-    potential_freelancer_divs = soup.find_all('div', class_=lambda x: x and ('up-card-section' in x or 'freelancer' in x))
-    if potential_freelancer_divs:
-        return True, None
-    
-    return False, None
+            # Check for freelancer cards
+            freelancer_cards = soup.find_all('div', attrs={'data-test': 'freelancer-card'})
+            
+            if freelancer_cards:
+                return True, None
+            
+            # Check for any divs that might contain freelancer information
+            potential_freelancer_divs = soup.find_all('div', class_=lambda x: x and ('up-card-section' in x or 'freelancer' in x))
+            if potential_freelancer_divs:
+                return True, None
+            
+            return False, None
+
+        except requests.RequestException as e:
+            if attempt < max_retries - 1:
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                time.sleep(wait_time)
+            else:
+                return False, f"Error: {str(e)}"
 
 def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
     left, right = 1, max_pages
@@ -63,7 +70,7 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
     total_iterations = (max_pages.bit_length() - 1) * 3  # Estimate of total iterations
     iterations = 0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         while left <= right:
             mid = (left + right) // 2
             pages_to_check = [mid - 1, mid, mid + 1]
@@ -87,7 +94,7 @@ def binary_search(session, query, agency, top_rated_plus, max_pages=1000):
             else:
                 right = mid - 1
 
-            time.sleep(0.05)
+            time.sleep(random.uniform(1, 3))  # Random delay between 1 and 3 seconds
 
     yield iterations, total_iterations, left, right, last_page_with_results, None
 
