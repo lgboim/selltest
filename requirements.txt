@@ -4,3 +4,4 @@ beautifulsoup4
 tqdm
 cloudscraper
 browser_cookie3
+openvpn-api
