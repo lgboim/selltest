@@ -119,6 +119,18 @@ def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
 
+    # Attempt to get Upwork session on app startup
+    if 'upwork_session' not in st.session_state:
+        with st.spinner("Checking Upwork session..."):
+            session_cookies = get_upwork_session()
+            if session_cookies:
+                st.session_state['upwork_session'] = session_cookies
+                st.success("Upwork session obtained successfully!")
+            else:
+                st.error("Failed to obtain Upwork session. Please make sure you're logged in to Upwork in your browser.")
+                webbrowser.open("https://www.upwork.com/")
+                st.info("Upwork has been opened in a new tab. Please log in if necessary, then refresh this page.")
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -127,24 +139,9 @@ def main():
         agency = st.checkbox("Search for agencies")
         top_rated_plus = st.checkbox("Search for Top Rated Plus")
 
-    session_cookies = st.session_state.get('upwork_session', None)
-
-    if st.button("Open Upwork"):
-        webbrowser.open("https://www.upwork.com/")
-        st.info("Upwork has been opened in a new tab. Please log in if necessary, then return here and click 'Confirm Session' when ready.")
-        
-    if st.button("Confirm Session"):
-        with st.spinner("Checking Upwork session..."):
-            session_cookies = get_upwork_session()
-            if session_cookies:
-                st.session_state['upwork_session'] = session_cookies
-                st.success("Upwork session obtained successfully!")
-            else:
-                st.error("Failed to obtain Upwork session. Please make sure you're logged in to Upwork in your browser.")
-
     if st.button("Search", type="primary"):
-        if not session_cookies:
-            st.warning("Please confirm your Upwork session before searching.")
+        if 'upwork_session' not in st.session_state:
+            st.warning("Please log in to Upwork in your browser and refresh this page before searching.")
         elif query:
             query = quote(query)
             
