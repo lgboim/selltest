@@ -87,6 +87,24 @@ def linear_search(query, agency, top_rated_plus, max_pages=1000):
 
     yield page, max_pages, last_page_with_results, None
 
+def get_upwork_session():
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
+    url = "https://www.upwork.com/"
+    headers = {
+        'User-Agent': get_random_user_agent(),
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'DNT': '1',
+    }
+    
+    try:
+        response = scraper.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        return scraper.cookies.get_dict()
+    except Exception as e:
+        st.error(f"Failed to obtain Upwork session: {str(e)}")
+        return None
+
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
@@ -99,8 +117,21 @@ def main():
         agency = st.checkbox("Search for agencies")
         top_rated_plus = st.checkbox("Search for Top Rated Plus")
 
+    session_cookies = st.session_state.get('upwork_session', None)
+
+    if st.button("Get Upwork Session"):
+        with st.spinner("Obtaining Upwork session..."):
+            session_cookies = get_upwork_session()
+            if session_cookies:
+                st.session_state['upwork_session'] = session_cookies
+                st.success("Upwork session obtained successfully!")
+            else:
+                st.error("Failed to obtain Upwork session. Please try again.")
+
     if st.button("Search", type="primary"):
-        if query:
+        if not session_cookies:
+            st.warning("Please obtain an Upwork session before searching.")
+        elif query:
             query = quote(query)
             
             progress_bar = st.progress(0)
