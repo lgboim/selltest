@@ -114,10 +114,6 @@ def main():
         agency = st.checkbox("Search for agencies")
         top_rated_plus = st.checkbox("Search for Top Rated Plus")
 
-    # Add input fields for user data
-    st.subheader("User Data (Optional)")
-    user_cookie = st.text_input("Enter your Upwork session cookie:", type="password")
-    
     if st.button("Search", type="primary"):
         if query:
             st.info("Obtaining Upwork session...")
