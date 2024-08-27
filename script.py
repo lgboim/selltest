@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import time
 import random
 from urllib.parse import quote
-import webbrowser
+import browser_cookie3
 
 def get_random_user_agent():
     user_agents = [
@@ -15,7 +15,18 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
-def check_page(page_number, query, agency, top_rated_plus):
+def get_upwork_cookies():
+    try:
+        chrome_cookies = browser_cookie3.chrome(domain_name='upwork.com')
+        firefox_cookies = browser_cookie3.firefox(domain_name='upwork.com')
+        edge_cookies = browser_cookie3.edge(domain_name='upwork.com')
+        
+        all_cookies = {**dict(chrome_cookies), **dict(firefox_cookies), **dict(edge_cookies)}
+        return all_cookies
+    except:
+        return {}
+
+def check_page(page_number, query, agency, top_rated_plus, cookies):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
     if agency:
@@ -34,7 +45,7 @@ def check_page(page_number, query, agency, top_rated_plus):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = scraper.get(url, headers=headers, timeout=20)
+            response = scraper.get(url, headers=headers, cookies=cookies, timeout=20)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -64,14 +75,14 @@ def check_page(page_number, query, agency, top_rated_plus):
             else:
                 return False, f"Error: {str(e)}"
 
-def linear_search(query, agency, top_rated_plus, max_pages=1000):
+def linear_search(query, agency, top_rated_plus, cookies, max_pages=1000):
     last_page_with_results = 0
     page = 1
 
     while page <= max_pages:
         time.sleep(random.uniform(5, 10))  # Random delay between 5 and 10 seconds
         
-        result, error = check_page(page, query, agency, top_rated_plus)
+        result, error = check_page(page, query, agency, top_rated_plus, cookies)
         
         if error:
             yield page, max_pages, None, error
@@ -88,48 +99,13 @@ def linear_search(query, agency, top_rated_plus, max_pages=1000):
 
     yield page, max_pages, last_page_with_results, None
 
-def get_upwork_session():
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
-    url = "https://www.upwork.com/"
-    headers = {
-        'User-Agent': get_random_user_agent(),
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'DNT': '1',
-    }
-    
-    try:
-        response = scraper.get(url, headers=headers, timeout=20)
-        response.raise_for_status()
-        
-        # Check if the user is logged in
-        soup = BeautifulSoup(response.text, 'html.parser')
-        logged_in = soup.find('a', {'href': '/logout'}) is not None
-        
-        if logged_in:
-            return scraper.cookies.get_dict()
-        else:
-            st.warning("Please log in to Upwork in your browser before confirming the session.")
-            return None
-    except Exception as e:
-        st.error(f"Failed to obtain Upwork session: {str(e)}")
-        return None
-
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
 
-    # Attempt to get Upwork session on app startup
-    if 'upwork_session' not in st.session_state:
-        with st.spinner("Checking Upwork session..."):
-            session_cookies = get_upwork_session()
-            if session_cookies:
-                st.session_state['upwork_session'] = session_cookies
-                st.success("Upwork session obtained successfully!")
-            else:
-                st.error("Failed to obtain Upwork session. Please make sure you're logged in to Upwork in your browser.")
-                webbrowser.open("https://www.upwork.com/")
-                st.info("Upwork has been opened in a new tab. Please log in if necessary, then refresh this page.")
+    upwork_cookies = get_upwork_cookies()
+    if not upwork_cookies:
+        st.warning("No Upwork session found. Please log in to Upwork in your browser and refresh this page.")
 
     col1, col2 = st.columns([2, 1])
 
@@ -140,8 +116,8 @@ def main():
         top_rated_plus = st.checkbox("Search for Top Rated Plus")
 
     if st.button("Search", type="primary"):
-        if 'upwork_session' not in st.session_state:
-            st.warning("Please log in to Upwork in your browser and refresh this page before searching.")
+        if not upwork_cookies:
+            st.error("No Upwork session found. Please log in to Upwork in your browser and refresh this page.")
         elif query:
             query = quote(query)
             
@@ -149,7 +125,7 @@ def main():
             status_text = st.empty()
 
             start_time = time.time()
-            search_generator = linear_search(query, agency, top_rated_plus)
+            search_generator = linear_search(query, agency, top_rated_plus, upwork_cookies)
 
             last_page = None
             for result in search_generator:
