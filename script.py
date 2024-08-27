@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import time
 import random
 from urllib.parse import quote
+import webbrowser
 
 def get_random_user_agent():
     user_agents = [
@@ -120,6 +121,10 @@ def main():
     session_cookies = st.session_state.get('upwork_session', None)
 
     if st.button("Get Upwork Session"):
+        webbrowser.open("https://www.upwork.com/")
+        st.info("Upwork has been opened in your default browser. Please log in if necessary, then return here and click 'Confirm Session' when ready.")
+        
+    if st.button("Confirm Session"):
         with st.spinner("Obtaining Upwork session..."):
             session_cookies = get_upwork_session()
             if session_cookies:
