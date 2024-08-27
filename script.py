@@ -13,7 +13,7 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
-def check_page(session, page_number, query, agency, top_rated_plus):
+def check_page(session, page_number, query, agency, top_rated_plus, cookies):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
     if agency:
         url += "&pt=agency"
@@ -31,7 +31,7 @@ def check_page(session, page_number, query, agency, top_rated_plus):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = session.get(url, headers=headers, timeout=10)
+            response = session.get(url, headers=headers, cookies=cookies, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -61,14 +61,14 @@ def check_page(session, page_number, query, agency, top_rated_plus):
             else:
                 return False, f"Error: {str(e)}"
 
-def linear_search(session, query, agency, top_rated_plus, max_pages=1000):
+def linear_search(session, query, agency, top_rated_plus, cookies, max_pages=1000):
     last_page_with_results = 0
     page = 1
 
     while page <= max_pages:
         time.sleep(random.uniform(5, 10))  # Random delay between 5 and 10 seconds
         
-        result, error = check_page(session, page, query, agency, top_rated_plus)
+        result, error = check_page(session, page, query, agency, top_rated_plus, cookies)
         
         if error:
             yield page, max_pages, None, error
@@ -97,16 +97,28 @@ def main():
         agency = st.checkbox("Search for agencies")
         top_rated_plus = st.checkbox("Search for Top Rated Plus")
 
+    # Add input fields for user data
+    st.subheader("User Data (Optional)")
+    user_cookie = st.text_input("Enter your Upwork session cookie:", type="password")
+    
     if st.button("Search", type="primary"):
         if query:
             session = requests.Session()
             query = requests.utils.quote(query)
             
+            # Parse the cookie string into a dictionary
+            cookies = {}
+            if user_cookie:
+                for item in user_cookie.split(';'):
+                    if '=' in item:
+                        key, value = item.strip().split('=', 1)
+                        cookies[key] = value
+
             progress_bar = st.progress(0)
             status_text = st.empty()
 
             start_time = time.time()
-            search_generator = linear_search(session, query, agency, top_rated_plus)
+            search_generator = linear_search(session, query, agency, top_rated_plus, cookies)
 
             last_page = None
             for result in search_generator:
