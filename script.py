@@ -3,6 +3,16 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import concurrent.futures
+import random
+
+def get_random_user_agent():
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36'
+    ]
+    return random.choice(user_agents)
 
 def check_page(session, page_number, query, agency, top_rated_plus):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
@@ -12,12 +22,18 @@ def check_page(session, page_number, query, agency, top_rated_plus):
         url += "&top_rated_plus=yes"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': get_random_user_agent(),
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Referer': 'https://www.upwork.com/',
+        'DNT': '1',
     }
-    response = session.get(url, headers=headers)
     
-    if response.status_code != 200:
-        return False, f"Error: Status code {response.status_code}"
+    try:
+        response = session.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        return False, f"Error: {str(e)}"
     
     soup = BeautifulSoup(response.text, 'html.parser')
     
@@ -103,6 +119,7 @@ def main():
                 iterations, total_iterations, left, right, last_page, error = result
                 if error:
                     st.error(error)
+                    st.error("The search was blocked. Please try again later or consider using a VPN.")
                     break
                 if last_page is not None:
                     break
@@ -147,7 +164,7 @@ def main():
                         "Top Rated Plus": "Yes" if top_rated_plus else "No"
                     })
             else:
-                st.error("Search failed to complete. Please try again.")
+                st.error("Search failed to complete. Please try again later or consider using a VPN.")
 
         else:
             st.warning("Please enter a search query.")
