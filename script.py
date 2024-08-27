@@ -3,6 +3,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 import time
 import random
+from urllib.parse import quote
 
 def get_random_user_agent():
     user_agents = [
@@ -100,7 +101,7 @@ def main():
 
     if st.button("Search", type="primary"):
         if query:
-            query = cloudscraper.utils.quote(query)
+            query = quote(query)
             
             progress_bar = st.progress(0)
             status_text = st.empty()
