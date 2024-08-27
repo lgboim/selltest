@@ -3,5 +3,3 @@ requests
 beautifulsoup4
 tqdm
 cloudscraper
-subprocess
-tempfile
