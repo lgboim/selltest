@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import time
 import random
 from urllib.parse import quote
-import browser_cookie3
 
 def get_random_user_agent():
     user_agents = [
@@ -15,27 +14,7 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
-def parse_cookies(cookie_string):
-    try:
-        return dict(item.split("=", 1) for item in cookie_string.split("; "))
-    except:
-        st.error("Invalid cookie format. Please make sure you've copied the entire cookie string.")
-        return {}
-
-def get_upwork_cookies():
-    try:
-        chrome_cookies = browser_cookie3.chrome(domain_name='upwork.com')
-        firefox_cookies = browser_cookie3.firefox(domain_name='upwork.com')
-        edge_cookies = browser_cookie3.edge(domain_name='upwork.com')
-        
-        all_cookies = {**dict(chrome_cookies), **dict(firefox_cookies), **dict(edge_cookies)}
-        return all_cookies
-    except Exception as e:
-        st.error(f"Failed to obtain browser cookies: {str(e)}")
-        return {}
-
-def check_page(page_number, query, agency, top_rated_plus, cookies):
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
+def check_page(scraper, page_number, query, agency, top_rated_plus):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
     if agency:
         url += "&pt=agency"
@@ -53,7 +32,7 @@ def check_page(page_number, query, agency, top_rated_plus, cookies):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = scraper.get(url, headers=headers, cookies=cookies, timeout=20)
+            response = scraper.get(url, headers=headers, timeout=20)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -83,14 +62,14 @@ def check_page(page_number, query, agency, top_rated_plus, cookies):
             else:
                 return False, f"Error: {str(e)}"
 
-def linear_search(query, agency, top_rated_plus, cookies, max_pages=1000):
+def linear_search(scraper, query, agency, top_rated_plus, max_pages=1000):
     last_page_with_results = 0
     page = 1
 
     while page <= max_pages:
         time.sleep(random.uniform(5, 10))  # Random delay between 5 and 10 seconds
         
-        result, error = check_page(page, query, agency, top_rated_plus, cookies)
+        result, error = check_page(scraper, page, query, agency, top_rated_plus)
         
         if error:
             yield page, max_pages, None, error
@@ -111,17 +90,7 @@ def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
 
-    upwork_cookies = get_upwork_cookies()
-    if upwork_cookies:
-        st.success("Successfully retrieved Upwork cookies from your browser.")
-    else:
-        st.warning("No Upwork cookies found automatically. You may need to enter them manually.")
-
-    manual_cookie_input = st.text_area("Enter Upwork cookies manually (optional):", height=100)
-    if manual_cookie_input:
-        manual_cookies = parse_cookies(manual_cookie_input)
-        upwork_cookies.update(manual_cookies)
-        st.success("Manually entered cookies added successfully.")
+    st.warning("Please ensure you're using a VPN before proceeding with the search.")
 
     col1, col2 = st.columns([2, 1])
 
@@ -139,14 +108,15 @@ def main():
             status_text = st.empty()
 
             start_time = time.time()
-            search_generator = linear_search(query, agency, top_rated_plus, upwork_cookies)
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
+            search_generator = linear_search(scraper, query, agency, top_rated_plus)
 
             last_page = None
             for result in search_generator:
                 current_page, max_pages, last_page, error = result
                 if error:
                     st.error(error)
-                    st.error("The search was blocked. Please try again later.")
+                    st.error("The search was blocked. Please try again later or consider changing your VPN.")
                     break
                 if last_page is not None:
                     break
@@ -191,7 +161,7 @@ def main():
                         "Top Rated Plus": "Yes" if top_rated_plus else "No"
                     })
             else:
-                st.error("Search failed to complete. Please try again later.")
+                st.error("Search failed to complete. Please try again later or consider changing your VPN.")
 
         else:
             st.warning("Please enter a search query.")
