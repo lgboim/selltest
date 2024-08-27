@@ -4,7 +4,9 @@ from bs4 import BeautifulSoup
 import time
 import random
 from urllib.parse import quote
-from openvpn_api import VPN
+import subprocess
+import os
+import tempfile
 
 def get_random_user_agent():
     user_agents = [
@@ -87,34 +89,53 @@ def linear_search(scraper, query, agency, top_rated_plus, max_pages=1000):
 
     yield page, max_pages, last_page_with_results, None
 
-def connect_vpn(config_file):
-    vpn = VPN()
-    try:
-        vpn.connect(config_file)
-        return vpn
-    except Exception as e:
-        st.error(f"Failed to connect to VPN: {str(e)}")
-        return None
+def connect_vpn():
+    vpn_config = """
+    # Paste your OpenVPN configuration here
+    # For example:
+    client
+    dev tun
+    proto udp
+    remote vpn.example.com 1194
+    resolv-retry infinite
+    nobind
+    persist-key
+    persist-tun
+    ca ca.crt
+    cert client.crt
+    key client.key
+    remote-cert-tls server
+    cipher AES-256-CBC
+    auth SHA256
+    comp-lzo
+    verb 3
+    """
+    
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.ovpn') as temp_config:
+        temp_config.write(vpn_config)
+        config_path = temp_config.name
 
-def disconnect_vpn(vpn):
     try:
-        vpn.disconnect()
-    except Exception as e:
-        st.error(f"Failed to disconnect VPN: {str(e)}")
+        subprocess.run(['openvpn', '--config', config_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        st.success("VPN connected successfully!")
+    except subprocess.CalledProcessError as e:
+        st.error(f"Failed to connect to VPN: {e.stderr.decode()}")
+    finally:
+        os.unlink(config_path)
+
+def disconnect_vpn():
+    try:
+        subprocess.run(['killall', 'openvpn'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        st.success("VPN disconnected successfully!")
+    except subprocess.CalledProcessError as e:
+        st.error(f"Failed to disconnect VPN: {e.stderr.decode()}")
 
 def main():
     st.set_page_config(page_title="Upwork Search Page Finder", page_icon="🔍", layout="wide")
     st.title("🔍 Upwork results")
 
-    vpn_config = st.file_uploader("Upload OpenVPN config file", type="ovpn")
-    
-    if vpn_config is not None:
-        vpn = connect_vpn(vpn_config)
-        if vpn:
-            st.success("VPN connected successfully!")
-        else:
-            st.error("Failed to connect to VPN. Please check your config file.")
-            return
+    if st.button("Connect VPN"):
+        connect_vpn()
 
     col1, col2 = st.columns([2, 1])
 
@@ -190,10 +211,8 @@ def main():
         else:
             st.warning("Please enter a search query.")
 
-    if vpn_config is not None:
-        if st.button("Disconnect VPN"):
-            disconnect_vpn(vpn)
-            st.success("VPN disconnected successfully!")
+    if st.button("Disconnect VPN"):
+        disconnect_vpn()
 
 if __name__ == "__main__":
     main()
