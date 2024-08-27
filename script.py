@@ -101,7 +101,16 @@ def get_upwork_session():
     try:
         response = scraper.get(url, headers=headers, timeout=20)
         response.raise_for_status()
-        return scraper.cookies.get_dict()
+        
+        # Check if the user is logged in
+        soup = BeautifulSoup(response.text, 'html.parser')
+        logged_in = soup.find('a', {'href': '/logout'}) is not None
+        
+        if logged_in:
+            return scraper.cookies.get_dict()
+        else:
+            st.warning("Please log in to Upwork in your browser before confirming the session.")
+            return None
     except Exception as e:
         st.error(f"Failed to obtain Upwork session: {str(e)}")
         return None
@@ -120,22 +129,22 @@ def main():
 
     session_cookies = st.session_state.get('upwork_session', None)
 
-    if st.button("Get Upwork Session"):
+    if st.button("Open Upwork"):
         webbrowser.open("https://www.upwork.com/")
-        st.info("Upwork has been opened in your default browser. Please log in if necessary, then return here and click 'Confirm Session' when ready.")
+        st.info("Upwork has been opened in a new tab. Please log in if necessary, then return here and click 'Confirm Session' when ready.")
         
     if st.button("Confirm Session"):
-        with st.spinner("Obtaining Upwork session..."):
+        with st.spinner("Checking Upwork session..."):
             session_cookies = get_upwork_session()
             if session_cookies:
                 st.session_state['upwork_session'] = session_cookies
                 st.success("Upwork session obtained successfully!")
             else:
-                st.error("Failed to obtain Upwork session. Please try again.")
+                st.error("Failed to obtain Upwork session. Please make sure you're logged in to Upwork in your browser.")
 
     if st.button("Search", type="primary"):
         if not session_cookies:
-            st.warning("Please obtain an Upwork session before searching.")
+            st.warning("Please confirm your Upwork session before searching.")
         elif query:
             query = quote(query)
             
