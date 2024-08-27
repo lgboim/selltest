@@ -1,9 +1,8 @@
 import streamlit as st
-import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 import time
 import random
-import cloudscraper
 
 def get_random_user_agent():
     user_agents = [
@@ -14,25 +13,8 @@ def get_random_user_agent():
     ]
     return random.choice(user_agents)
 
-def get_upwork_session():
+def check_page(page_number, query, agency, top_rated_plus):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
-    url = "https://www.upwork.com/"
-    headers = {
-        'User-Agent': get_random_user_agent(),
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'DNT': '1',
-    }
-    
-    try:
-        response = scraper.get(url, headers=headers, timeout=20)
-        response.raise_for_status()
-        return scraper.cookies.get_dict()
-    except requests.RequestException as e:
-        st.error(f"Failed to obtain Upwork session: {str(e)}")
-        return None
-
-def check_page(scraper, page_number, query, agency, top_rated_plus):
     url = f"https://www.upwork.com/nx/search/talent/?nbs=1&q={query}&page={page_number}"
     if agency:
         url += "&pt=agency"
@@ -73,21 +55,21 @@ def check_page(scraper, page_number, query, agency, top_rated_plus):
             
             return False, None
 
-        except requests.RequestException as e:
+        except Exception as e:
             if attempt < max_retries - 1:
                 wait_time = (2 ** attempt) + random.uniform(0, 1)
                 time.sleep(wait_time)
             else:
                 return False, f"Error: {str(e)}"
 
-def linear_search(scraper, query, agency, top_rated_plus, max_pages=1000):
+def linear_search(query, agency, top_rated_plus, max_pages=1000):
     last_page_with_results = 0
     page = 1
 
     while page <= max_pages:
         time.sleep(random.uniform(5, 10))  # Random delay between 5 and 10 seconds
         
-        result, error = check_page(scraper, page, query, agency, top_rated_plus)
+        result, error = check_page(page, query, agency, top_rated_plus)
         
         if error:
             yield page, max_pages, None, error
@@ -118,22 +100,13 @@ def main():
 
     if st.button("Search", type="primary"):
         if query:
-            st.info("Obtaining Upwork session...")
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False})
-            scraper.cookies.update(get_upwork_session())
-            
-            if not scraper.cookies:
-                st.error("Failed to obtain Upwork session. Please try again later.")
-                return
-
-            st.success("Upwork session obtained successfully.")
-            query = requests.utils.quote(query)
+            query = cloudscraper.utils.quote(query)
             
             progress_bar = st.progress(0)
             status_text = st.empty()
 
             start_time = time.time()
-            search_generator = linear_search(scraper, query, agency, top_rated_plus)
+            search_generator = linear_search(query, agency, top_rated_plus)
 
             last_page = None
             for result in search_generator:
